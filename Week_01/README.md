@@ -136,6 +136,204 @@ Queue.get_nowait()
 Queue.task_done()
 Queue.join()
 
+Queue的源码可以在以下网址找到：
+https://github.com/python/cpython/blob/2.7/Lib/Queue.py
+Queue源码分析：
+class Queue:
+    """Create a queue object with a given maximum size.
+    If maxsize is <= 0, the queue size is infinite.
+    """
+    def __init__(self, maxsize=0):
+        self.maxsize = maxsize # 队列的最大容量
+        self._init(maxsize) # 初始化队列对象的底层数据结构，该数据结构用来保存put到队列中的元素, 在Queue中，底层数据结构是collections.dequeue（双端队列）
+        # mutex must be held whenever the queue is mutating.  All methods
+        # that acquire mutex must release it before returning.  mutex
+        # is shared between the three conditions, so acquiring and
+        # releasing the conditions also acquires and releases mutex.
+
+        #在使用队列对象暴漏出的所有的方法时，都应该先获取到这个互斥变量,所有的获取了该互斥变量的方法，在它返回之前，都应该先释放该变量,这个互斥变量会在三个条件变量之间共享（也就是说，这三个条件变量,的底层锁都是该互斥变量）。因此，获取这些条件变量时，会先获取到该互斥变量,释放这些条件变量时，会先释放该互斥变量。
+
+
+        self.mutex = _threading.Lock()
+        # Notify not_empty whenever an item is added to the queue; a
+        # thread waiting to get is notified then.
+        self.not_empty = _threading.Condition(self.mutex)
+        # Notify not_full whenever an item is removed from the queue;
+        # a thread waiting to put is notified then.
+        self.not_full = _threading.Condition(self.mutex)
+        # Notify all_tasks_done whenever the number of unfinished tasks
+        # drops to zero; thread waiting to join() is notified to resume
+        self.all_tasks_done = _threading.Condition(self.mutex)
+        self.unfinished_tasks = 0
+
+    def task_done(self):
+        """Indicate that a formerly enqueued task is complete.
+        Used by Queue consumer threads.  For each get() used to fetch a task,
+        a subsequent call to task_done() tells the queue that the processing
+        on the task is complete.
+        If a join() is currently blocking, it will resume when all items
+        have been processed (meaning that a task_done() call was received
+        for every item that had been put() into the queue).
+        Raises a ValueError if called more times than there were items
+        placed in the queue.
+        """
+        self.all_tasks_done.acquire()
+        try:
+            unfinished = self.unfinished_tasks - 1
+            if unfinished <= 0:
+                if unfinished < 0:
+                    raise ValueError('task_done() called too many times')
+                self.all_tasks_done.notify_all()
+            self.unfinished_tasks = unfinished
+        finally:
+            self.all_tasks_done.release()
+
+    def join(self):
+        """Blocks until all items in the Queue have been gotten and processed.
+        The count of unfinished tasks goes up whenever an item is added to the
+        queue. The count goes down whenever a consumer thread calls task_done()
+        to indicate the item was retrieved and all work on it is complete.
+        When the count of unfinished tasks drops to zero, join() unblocks.
+        """
+        self.all_tasks_done.acquire()
+        try:
+            while self.unfinished_tasks:
+                self.all_tasks_done.wait()
+        finally:
+            self.all_tasks_done.release()
+
+    def qsize(self):
+        """Return the approximate size of the queue (not reliable!)."""
+        self.mutex.acquire()
+        n = self._qsize()
+        self.mutex.release()
+        return n
+
+    def empty(self):
+        """Return True if the queue is empty, False otherwise (not reliable!)."""
+        self.mutex.acquire()
+        n = not self._qsize()
+        self.mutex.release()
+        return n
+
+    def full(self):
+        """Return True if the queue is full, False otherwise (not reliable!)."""
+        self.mutex.acquire()
+        n = 0 < self.maxsize == self._qsize()
+        self.mutex.release()
+        return n
+
+    def put(self, item, block=True, timeout=None):
+        #在这里，往队列中加入一个元素，如果block参数是True，并且timeout参数是None，
+        那么put操作会阻塞，直到队列中有空闲的空间。
+        如果block参数是True，timeout参数是非负数，
+        并且，在这个期间，队列中一直没有空间，那么<strong>put</strong>操作会阻塞
+        到超时，然后抛出<strong>Full</strong>异常。
+        如果<em>block</em>参数是False，并且队列中有空闲空间，
+        那么会立即把元素保存到底层数据结构中；否则，会忽略掉<em>timeout</em>参数，
+        抛出<strong>Full</strong>异常。
+        """Put an item into the queue.
+        If optional args 'block' is true and 'timeout' is None (the default),
+        block if necessary until a free slot is available. If 'timeout' is
+        a non-negative number, it blocks at most 'timeout' seconds and raises
+        the Full exception if no free slot was available within that time.
+        Otherwise ('block' is false), put an item on the queue if a free slot
+        is immediately available, else raise the Full exception ('timeout'
+        is ignored in that case).
+        """
+        self.not_full.acquire()
+        try:
+            if self.maxsize > 0:
+                if not block:
+                    if self._qsize() == self.maxsize:
+                        raise Full
+                elif timeout is None:
+                    while self._qsize() == self.maxsize:
+                        self.not_full.wait()
+                elif timeout < 0:
+                    raise ValueError("'timeout' must be a non-negative number")
+                else:
+                    endtime = _time() + timeout
+                    while self._qsize() == self.maxsize:
+                        remaining = endtime - _time()
+                        if remaining <= 0.0:
+                            raise Full
+                        self.not_full.wait(remaining)
+            self._put(item)
+            self.unfinished_tasks += 1
+            self.not_empty.notify()
+        finally:
+            self.not_full.release()
+
+    def put_nowait(self, item):
+        """Put an item into the queue without blocking.
+        Only enqueue the item if a free slot is immediately available.
+        Otherwise raise the Full exception.
+        """
+        return self.put(item, False)
+
+    def get(self, block=True, timeout=None):
+        """Remove and return an item from the queue.
+        If optional args 'block' is true and 'timeout' is None (the default),
+        block if necessary until an item is available. If 'timeout' is
+        a non-negative number, it blocks at most 'timeout' seconds and raises
+        the Empty exception if no item was available within that time.
+        Otherwise ('block' is false), return an item if one is immediately
+        available, else raise the Empty exception ('timeout' is ignored
+        in that case).
+        """
+        self.not_empty.acquire()
+        try:
+            if not block:
+                if not self._qsize():
+                    raise Empty
+            elif timeout is None:
+                while not self._qsize():
+                    self.not_empty.wait()
+            elif timeout < 0:
+                raise ValueError("'timeout' must be a non-negative number")
+            else:
+                endtime = _time() + timeout
+                while not self._qsize():
+                    remaining = endtime - _time()
+                    if remaining <= 0.0:
+                        raise Empty
+                    self.not_empty.wait(remaining)
+            item = self._get()
+            self.not_full.notify()
+            return item
+        finally:
+            self.not_empty.release()
+
+    def get_nowait(self):
+        """Remove and return an item from the queue without blocking.
+        Only get an item if one is immediately available. Otherwise
+        raise the Empty exception.
+        """
+        return self.get(False)
+
+    # Override these methods to implement other queue organizations
+    # (e.g. stack or priority queue).
+    # These will only be called with appropriate locks held
+
+    # Initialize the queue representation
+    def _init(self, maxsize):
+        # 在Queue中，底层数据结构是双端队列
+        self.queue = deque()
+
+    def _qsize(self, len=len):
+        return len(self.queue)
+
+    # Put a new item in the queue
+    def _put(self, item):
+        # 在这里，把元素保存到底层的数据结构中
+        self.queue.append(item)
+
+    # Get an item from the queue
+    def _get(self):
+        return self.queue.popleft()
+
+
 
 如果我们要创建双端队列，可以
 from collections import deque
@@ -148,12 +346,12 @@ copy()                    复制整个双端队列
 count(x)                   数等于x的元素的个数
 extend(iterable)           把元素一个个地加入队列的右边
 extendleft(iterable)       把元素一个个反顺序地加入队列的左边
-index(x[, start[, stop]])
-insert(i, x)
-pop()
-popleft()
-remove(value)
-reverse()
+index(x[, start[, stop]])  找出x的index，或者从start 到stop之间找
+insert(i, x)               在第i个位置插入x
+pop()                      弹出队列最右边的元素
+popleft()                  弹出队列最左边的元素
+remove(value)              删除队列中从左数出现的第一个等于value的元素，如果找不到就报错
+reverse()                  
 rotate(n=1)
 maxlen
 
