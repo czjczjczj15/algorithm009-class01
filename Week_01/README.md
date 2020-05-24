@@ -7,12 +7,12 @@
 问题在于增加和删除数组的时候，时间复杂度是O(n)（最差是移动整个数组n，最好的情况是插在最后那里O(1)）。
 
 时间复杂度：
-prepend O(1)
-append  O(1)
-lookup  O(1)
-insert  O(n)
-delete  O(n)
-
+prepend O(1)\\
+append  O(1)\\
+lookup  O(1)\\
+insert  O(n)\\
+delete  O(n)\\
+\\
 数组的增加和删除的时间复杂度都是O(n)，为了减少时间复杂度，有些题可以尽量用交换元素的方法去实现，比如move zeros那道题。
 查询一个元素是否再数组里面，可以用二分法，时间复杂度是O(logn)，前提是数组是有序的。
 
