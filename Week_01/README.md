@@ -371,20 +371,35 @@ class Queue:
 from collections import deque
 
 deque提供一下方法：
+
 append(x)                 把元素加到队列的右边
+
 appendleft(x)             把元素加到队列的左边
+
 clear()                   清理所有的元素 
+
 copy()                    复制整个双端队列
+
 count(x)                   数等于x的元素的个数
+
 extend(iterable)           把元素一个个地加入队列的右边
+
 extendleft(iterable)       把元素一个个反顺序地加入队列的左边
+
 index(x[, start[, stop]])  找出x的index，或者从start 到stop之间找
+
 insert(i, x)               在第i个位置插入x
+
 pop()                      弹出队列最右边的元素
+
 popleft()                  弹出队列最左边的元素
+
 remove(value)              删除队列中从左数出现的第一个等于value的元素，如果找不到就报错
+
 reverse()                  
+
 rotate(n=1)
+
 maxlen
 
 
