@@ -270,28 +270,52 @@ class Queue:
         is immediately available, else raise the Full exception ('timeout'
         is ignored in that case).
         """
+
+        # 1，获取条件变量not_full
         self.not_full.acquire()
         try:
+            # 2，如果maxsize大于0
             if self.maxsize > 0:
                 if not block:
+                    # 2.1.1，如果block是False，并且队列已满，那么抛出Full异常
                     if self._qsize() == self.maxsize:
                         raise Full
+                    # 2.1.2，如果block是False，并且队列未满，那么，走步骤4
                 elif timeout is None:
+                    # 2.2.1，如果block是True，timeout为None，并且队列已满，那么
+                    #  + 线程进入到not_full的waiting池，等待被唤醒；
+                    #  + 如果队列未满，那么，走步骤4
+                    # 2.2.2，线程被唤醒之后，回到2.2.1
+                    #  + （当有其他线程从队列中消费消息时，会通知not_full）
                     while self._qsize() == self.maxsize:
                         self.not_full.wait()
                 elif timeout < 0:
+                    # 如果block为True，但是timeout小于0，那么抛出ValueError
                     raise ValueError("'timeout' must be a non-negative number")
                 else:
+                    # 2.3，计算等待的结束时间
                     endtime = _time() + timeout
+                    # 2.3.1，如果队列未满，则走步骤4
+                    # 2.3.2，如果队列已满，那么计算出需要等待的时间，如果已经超时，那么，抛出Full异常；
+                    #  + 否则，并进入到not_full的waiting池，等待到超时或被唤醒
+                    # 2.3.3，在线程被唤醒或等待超时之后，回到2.3.1
+                    # 也就是说，如果在timeout指定的时间内，队列中，一直没有空闲空间，
+                    # + 那么线程在等待到超时之后，会抛出Full异常
                     while self._qsize() == self.maxsize:
                         remaining = endtime - _time()
                         if remaining <= 0.0:
                             raise Full
                         self.not_full.wait(remaining)
+
+            # 3，如果maxsize小于等于0，则走步骤4
+            # 4，将元素保存到底层数据结构中，
+            # + 并递增unfinished_tasks，同时通知not_empty，唤醒在其中等待数据的线程
             self._put(item)
             self.unfinished_tasks += 1
+            # 值得再次提及是，not_full、not_empty、all_tasks_done底层的锁是同一个
             self.not_empty.notify()
         finally:
+            # 4，释放条件变量not_full
             self.not_full.release()
 
     # 非阻塞的put
@@ -361,6 +385,7 @@ class Queue:
         # 在这里，把元素保存到底层的数据结构中
         self.queue.append(item)
 
+    # 从底层数据结构中，移除并返回一个元素
     # Get an item from the queue
     def _get(self):
         return self.queue.popleft()
