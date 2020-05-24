@@ -140,4 +140,24 @@ Queue.join()
 如果我们要创建双端队列，可以
 from collections import deque
 
+deque提供一下方法：
+append(x)                 把元素加到队列的右边
+appendleft(x)             把元素加到队列的左边
+clear()                   清理所有的元素 
+copy()                    复制整个双端队列
+count(x)                   数等于x的元素的个数
+extend(iterable)           把元素一个个地加入队列的右边
+extendleft(iterable)       把元素一个个反顺序地加入队列的左边
+index(x[, start[, stop]])
+insert(i, x)
+pop()
+popleft()
+remove(value)
+reverse()
+rotate(n=1)
+maxlen
+
+
+
+
 
