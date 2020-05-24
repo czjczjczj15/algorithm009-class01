@@ -338,23 +338,40 @@ class Queue:
         available, else raise the Empty exception ('timeout' is ignored
         in that case).
         """
+
+        # 1，获取not_empty条件变量
         self.not_empty.acquire()
         try:
+            # 2.1.1，如果block是False，并且队列中没有元素，那么抛出Empty异常
+            # 2.1.2，如果block是False，并且队列中有元素，那么走步骤3
             if not block:
                 if not self._qsize():
                     raise Empty
+            # 2.2，如果block是True，并且timeout是None，那么：
+            # 2.2.1，如果队列中有元素，那么走步骤3；否则，线程进入到not_empty的waiting池，等待被唤醒
+            # 2.2.2，线程被唤醒之后，回到2.2.1
             elif timeout is None:
                 while not self._qsize():
                     self.not_empty.wait()
+            # 如果timeout小于0，那么抛出ValueError
             elif timeout < 0:
                 raise ValueError("'timeout' must be a non-negative number")
             else:
+                # 2.3，计算等待的结束时间
                 endtime = _time() + timeout
+                # 2.3.1，如果队列中有元素，那么走步骤3；否则，计算等待的超时时间，
+                #  + 如果达到了超时时间，那么抛出Empty错误；否则，进入到not_empty的waiting池，
+                #  + 等待到超时，或被唤醒 
+                # 2.3.2，当线程等待到超时或被唤醒之后，回到2.3.1
+
+                # 也就是说，如果在timeout指定的时间之内，队列中一直没有元素可用，
+                # + 那么，会等待timeout秒，并抛出Empty异常
                 while not self._qsize():
                     remaining = endtime - _time()
                     if remaining <= 0.0:
                         raise Empty
                     self.not_empty.wait(remaining)
+            # 3，从队列中移除并返回一个元素；通知not_full，也就是唤醒一个在not_full中等待的线程
             item = self._get()
             self.not_full.notify()
             return item
