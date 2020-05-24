@@ -148,27 +148,31 @@ class Queue:
     """
     def __init__(self, maxsize=0):
         self.maxsize = maxsize # 队列的最大容量
-        self._init(maxsize) # 初始化队列对象的底层数据结构，该数据结构用来保存put到队列中的元素, 在Queue中，底层数据结构是collections.dequeue（双端队列）
-        # mutex must be held whenever the queue is mutating.  All methods
-        # that acquire mutex must release it before returning.  mutex
-        # is shared between the three conditions, so acquiring and
-        # releasing the conditions also acquires and releases mutex.
+        # 初始化队列对象的底层数据结构，该数据结构用来保存put到队列中的元素, 在Queue中，底层数据结构是collections.dequeue（双端队列）
+        self._init(maxsize) 
+        
 
         #在使用队列对象暴漏出的所有的方法时，都应该先获取到这个互斥变量,所有的获取了该互斥变量的方法，
-        在它返回之前，都应该先释放该变量,这个互斥变量会在三个条件变量之间共享（也就是说，这三个条件变量,的底层锁都是该互斥变量）。
-        因此，获取这些条件变量时，会先获取到该互斥变量,释放这些条件变量时，会先释放该互斥变量。
-
-
+        # 在它返回之前，都应该先释放该变量,这个互斥变量会在三个条件变量之间共享
+        #（也就是说，这三个条件变量,的底层锁都是该互斥变量）。
+        # 因此，获取这些条件变量时，会先获取到该互斥变量,释放这些条件变量时，会先释放该互斥变量。
         self.mutex = _threading.Lock()
-        # Notify not_empty whenever an item is added to the queue; a
-        # thread waiting to get is notified then.
+
+        当成功地向队列中put一个元素时，会通知该条件变量；
+        # 当以阻塞的方式从队列中get元素的时候，
+        # 如果队列中没有可用的元素，那么线程会进入到该条件变量的waiting池，等待到超时或被唤醒
         self.not_empty = _threading.Condition(self.mutex)
-        # Notify not_full whenever an item is removed from the queue;
-        # a thread waiting to put is notified then.
+       
+        当成功地从队列中get一个元素时，会通知该条件变量。
+        # 当以阻塞的方式向队列中put元素的时候，
+        # 如果队列中没有剩余的空间，那么线程会进入到该条件变量的waiting池，等待到超时或被唤醒
         self.not_full = _threading.Condition(self.mutex)
-        # Notify all_tasks_done whenever the number of unfinished tasks
-        # drops to zero; thread waiting to join() is notified to resume
+
+        # 当未完成任务数归零的时候，会通知该条件变量，
+        # join()操作会从阻塞状态中退出
         self.all_tasks_done = _threading.Condition(self.mutex)
+
+        # 未完成的任务数
         self.unfinished_tasks = 0
 
     def task_done(self):
@@ -182,15 +186,28 @@ class Queue:
         Raises a ValueError if called more times than there were items
         placed in the queue.
         """
+        """调用该方法意味着，之前放到队列中的一个任务被完成了。
+        该方法是被队列的消费者线程使用的。消费者线程在调用get()方法，从队列中获取到一个任务，
+        并处理之后，需要调用该方法，告诉队列该任务处理完成了。
+        每次，成功向队列中put一个元素的时候，都会将unfinished_tasks增加1；
+        每次，调用task_done()方法，都会将unfinished_tasks减少1
+        该方法的作用是唤醒正在阻塞的join()操作。
+        """
+        # 获取条件变量
         self.all_tasks_done.acquire()
         try:
             unfinished = self.unfinished_tasks - 1
             if unfinished <= 0:
+                # 当unfinished小于0时，
+                # 也就是成功调用put()的次数小于调用task_done()的次数时，会抛出异常
                 if unfinished < 0:
                     raise ValueError('task_done() called too many times')
+                # 当unfinished为0时，会通知all_tasks_done
                 self.all_tasks_done.notify_all()
+            # 递减unfinished_tasks
             self.unfinished_tasks = unfinished
         finally:
+            # 释放条件变量
             self.all_tasks_done.release()
 
     def join(self):
@@ -200,13 +217,18 @@ class Queue:
         to indicate the item was retrieved and all work on it is complete.
         When the count of unfinished tasks drops to zero, join() unblocks.
         """
+        """该方法会一直阻塞，直到，队列中所有的元素都被取出，并被处理了。
+        当成功向队列中put元素的时候，unfinished_tasks会增加。
+        当消费者线程调用task_done()方法时，unfinished_tasks会减少。
+        当unfinished_tasks降为0时，join()方法才会退出阻塞状态
+        """
         self.all_tasks_done.acquire()
         try:
             while self.unfinished_tasks:
                 self.all_tasks_done.wait()
         finally:
             self.all_tasks_done.release()
-
+    
     def qsize(self):
         """Return the approximate size of the queue (not reliable!)."""
         self.mutex.acquire()
@@ -214,6 +236,7 @@ class Queue:
         self.mutex.release()
         return n
 
+    #如果队列为空，则返回True，否则返回False
     def empty(self):
         """Return True if the queue is empty, False otherwise (not reliable!)."""
         self.mutex.acquire()
@@ -221,6 +244,7 @@ class Queue:
         self.mutex.release()
         return n
 
+    #如果队列满了，则返回True，否则返回False
     def full(self):
         """Return True if the queue is full, False otherwise (not reliable!)."""
         self.mutex.acquire()
@@ -232,11 +256,11 @@ class Queue:
         #在这里，往队列中加入一个元素，如果block参数是True，并且timeout参数是None，
         那么put操作会阻塞，直到队列中有空闲的空间。
         如果block参数是True，timeout参数是非负数，
-        并且，在这个期间，队列中一直没有空间，那么<strong>put</strong>操作会阻塞
-        到超时，然后抛出<strong>Full</strong>异常。
-        如果<em>block</em>参数是False，并且队列中有空闲空间，
-        那么会立即把元素保存到底层数据结构中；否则，会忽略掉<em>timeout</em>参数，
-        抛出<strong>Full</strong>异常。
+        并且，在这个期间，队列中一直没有空间，那么put操作会阻塞
+        到超时，然后抛出Full异常。
+        如果block参数是False，并且队列中有空闲空间，
+        那么会立即把元素保存到底层数据结构中；否则，会忽略掉timeout参数，
+        抛出Full异常。
         """Put an item into the queue.
         If optional args 'block' is true and 'timeout' is None (the default),
         block if necessary until a free slot is available. If 'timeout' is
@@ -270,6 +294,7 @@ class Queue:
         finally:
             self.not_full.release()
 
+    # 非阻塞的put
     def put_nowait(self, item):
         """Put an item into the queue without blocking.
         Only enqueue the item if a free slot is immediately available.
@@ -310,6 +335,7 @@ class Queue:
         finally:
             self.not_empty.release()
 
+    # 非阻塞的get
     def get_nowait(self):
         """Remove and return an item from the queue without blocking.
         Only get an item if one is immediately available. Otherwise
@@ -326,6 +352,7 @@ class Queue:
         # 在Queue中，底层数据结构是双端队列
         self.queue = deque()
 
+    # 返回队列中的元素数
     def _qsize(self, len=len):
         return len(self.queue)
 
