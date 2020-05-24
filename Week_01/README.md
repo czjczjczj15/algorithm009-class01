@@ -151,10 +151,9 @@ class Queue:
         # that acquire mutex must release it before returning.  mutex
         # is shared between the three conditions, so acquiring and
         # releasing the conditions also acquires and releases mutex.
-
         #在使用队列对象暴漏出的所有的方法时，都应该先获取到这个互斥变量,所有的获取了该互斥变量的方法，在它返回之前，都应该先释放该变量,这个互斥变量会在三个条件变量之间共享（也就是说，这三个条件变量,的底层锁都是该互斥变量）。因此，获取这些条件变量时，会先获取到该互斥变量,释放这些条件变量时，会先释放该互斥变量。
-
-
+<!--  -->
+<!--  -->
         self.mutex = _threading.Lock()
         # Notify not_empty whenever an item is added to the queue; a
         # thread waiting to get is notified then.
@@ -166,7 +165,7 @@ class Queue:
         # drops to zero; thread waiting to join() is notified to resume
         self.all_tasks_done = _threading.Condition(self.mutex)
         self.unfinished_tasks = 0
-
+<!--  -->
     def task_done(self):
         """Indicate that a formerly enqueued task is complete.
         Used by Queue consumer threads.  For each get() used to fetch a task,
@@ -188,7 +187,7 @@ class Queue:
             self.unfinished_tasks = unfinished
         finally:
             self.all_tasks_done.release()
-
+<!--  -->
     def join(self):
         """Blocks until all items in the Queue have been gotten and processed.
         The count of unfinished tasks goes up whenever an item is added to the
@@ -202,28 +201,28 @@ class Queue:
                 self.all_tasks_done.wait()
         finally:
             self.all_tasks_done.release()
-
+<!--  -->
     def qsize(self):
         """Return the approximate size of the queue (not reliable!)."""
         self.mutex.acquire()
         n = self._qsize()
         self.mutex.release()
         return n
-
+<!--  -->
     def empty(self):
         """Return True if the queue is empty, False otherwise (not reliable!)."""
         self.mutex.acquire()
         n = not self._qsize()
         self.mutex.release()
         return n
-
+<!--  -->
     def full(self):
         """Return True if the queue is full, False otherwise (not reliable!)."""
         self.mutex.acquire()
         n = 0 < self.maxsize == self._qsize()
         self.mutex.release()
         return n
-
+<!--  -->
     def put(self, item, block=True, timeout=None):
         #在这里，往队列中加入一个元素，如果block参数是True，并且timeout参数是None，
         那么put操作会阻塞，直到队列中有空闲的空间。
@@ -265,14 +264,14 @@ class Queue:
             self.not_empty.notify()
         finally:
             self.not_full.release()
-
+<!--  -->
     def put_nowait(self, item):
         """Put an item into the queue without blocking.
         Only enqueue the item if a free slot is immediately available.
         Otherwise raise the Full exception.
         """
         return self.put(item, False)
-
+<!--  -->
     def get(self, block=True, timeout=None):
         """Remove and return an item from the queue.
         If optional args 'block' is true and 'timeout' is None (the default),
@@ -305,14 +304,14 @@ class Queue:
             return item
         finally:
             self.not_empty.release()
-
+<!--  -->
     def get_nowait(self):
         """Remove and return an item from the queue without blocking.
         Only get an item if one is immediately available. Otherwise
         raise the Empty exception.
         """
         return self.get(False)
-
+<!--  -->
     # Override these methods to implement other queue organizations
     # (e.g. stack or priority queue).
     # These will only be called with appropriate locks held
