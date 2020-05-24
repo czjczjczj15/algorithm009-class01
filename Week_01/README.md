@@ -138,6 +138,7 @@ Queue.join()
 
 Queue的源码可以在以下网址找到：
 https://github.com/python/cpython/blob/2.7/Lib/Queue.py
+
 Queue源码分析：
 class Queue:
     """Create a queue object with a given maximum size.
