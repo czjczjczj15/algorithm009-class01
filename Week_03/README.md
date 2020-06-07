@@ -58,6 +58,7 @@ def divie_comquer(problem, param1, param2,...):
     ...
     # process and generate the final result 
     result  = process_result(subresult1, subresult2, subresult3,...)
+    # revert the current level states
 
 
 
