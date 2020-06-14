@@ -14,52 +14,53 @@
 优先级优先搜索，一般称为启发式搜索（更多是深度学习方面的）
 优先级优先现在已经用于推荐算法和高级的搜索算法
 示例代码：
-def dfs(node):
-    #一开始是递归的终止条件：
-    if node in visited:
-        # already visited
-        return 
-
-    visited.add(node)
-    # process current node，访问当前层
-    # ... # logic here
-    
-    # 往下访问：
-    # 如果是二叉树的话，就是左孩子和右孩子；如果是图的话，就是它的联通的相邻节点；如果是多叉树的话就是遍历children，把所有的children遍历一次。
-    dfs(node.left)
-    dfs(node.right)
+	def dfs(node):
+	    #一开始是递归的终止条件：
+	    if node in visited:
+	        # already visited
+	        return 
+	
+	    visited.add(node)
+	    # process current node，访问当前层
+	    # ... # logic here
+	    
+	    # 往下访问：
+	    # 如果是二叉树的话，就是左孩子和右孩子；如果是图的话，就是它的联通的相邻节点；如果是多叉树的话就是遍历children，把所有的children遍历一次。
+	    dfs(node.left)
+	    dfs(node.right)
 
 DFS递归写法：
 
-visited = set()
-def dfs(node, visited):
-    visited.add(node)
-    # process current node here.
-    ...
-    for next_node in node.children():
-    	# 如果是多叉树的话也适用
-        if not next_node in visited:
-            dfs(next_node, visited)
+	visited = set()
+	def dfs(node, visited):
+	    visited.add(node)
+	    # process current node here.
+	    ...
+	    for next_node in node.children():
+	    	# 如果是多叉树的话也适用
+	        if not next_node in visited:
+	            dfs(next_node, visited)
 
 一开始传root进来，root就会先放到visited里面，表示root已经被visit
 被visited后，就在root.children里面找最左边未被访问的next_node
 
 BFS代码结构：
-def BFS(graph. start, end):
-	queue = []
-	queue.append([start])
-	visited.add(start)
 
-	while queue:
-		node = queue.pop()
-		visited.add(node)
-
-		process(node)
-		nodes = generate_related_nodes(node)
-		queue.push.(nodes)
-
-	# other processing work
-	...
+	def BFS(graph. start, end):
+		queue = []
+		queue.append([start])
+		visited.add(start)
+	
+		while queue:
+			node = queue.pop()
+			visited.add(node)
+	
+			process(node)
+			nodes = generate_related_nodes(node)
+			queue.push.(nodes)
+	
+		# other processing work
+		...
 
 在java里面用链表，或者是用一个双端队列deque来表示。
 在python里可以用列表，或者用deque。
@@ -85,18 +86,18 @@ DFS和BFS的本质就是把所有的node都遍历一遍，只不过顺序不同�
 3. 能够通过索引访问（index accessible)
 
 代码模板：
-########
-left, right = 0, len(array) - 1
 
-while left <= right:
-	mid  = (left + right ) / 2
-	if array[mid] == target:
-		# find the target!!
-		break or return reuslt
- 	elif array[mid] < target:
- 		left = mid + 1
- 	else: 
- 		right = mid - 1
+	left, right = 0, len(array) - 1
+	
+	while left <= right:
+		mid  = (left + right ) / 2
+		if array[mid] == target:
+			# find the target!!
+			break or return reuslt
+	 	elif array[mid] < target:
+	 		left = mid + 1
+	 	else: 
+	 		right = mid - 1
 
 
 
