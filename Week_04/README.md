@@ -85,6 +85,7 @@ DFS和BFS的本质就是把所有的node都遍历一遍，只不过顺序不同�
 3. 能够通过索引访问（index accessible)
 
 代码模板：
+
 left, right = 0, len(array) - 1
 while left <= right:
 	mid  = (left + right ) / 2
